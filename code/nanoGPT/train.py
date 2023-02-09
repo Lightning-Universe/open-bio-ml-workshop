@@ -2,6 +2,8 @@
 This training script is a reduced version that runs on a single GPU.
 
 $ python train.py
+
+The full version can be found here: https://github.com/Lightning-AI/nanoGPT
 """
 from dataclasses import asdict
 
