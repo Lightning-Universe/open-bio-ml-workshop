@@ -8,7 +8,6 @@ from dataclasses import asdict
 import os
 import time
 import math
-import pickle
 
 import numpy as np
 import torch
@@ -21,10 +20,6 @@ eval_interval = 2000
 log_interval = 1
 eval_iters = 200
 always_save_checkpoint = True  # if True, always save a checkpoint after each eval
-# wandb logging
-wandb_log = False  # disabled by default
-wandb_project = "owt"
-wandb_run_name = "gpt2"  # 'run' + str(time.time())
 # data
 dataset = "shakespeare"
 gradient_accumulation_steps = 5  # used to simulate larger batch sizes
@@ -142,12 +137,6 @@ def get_lr(iter):
     return min_lr + coeff * (learning_rate - min_lr)
 
 
-# logging
-if wandb_log:
-    import wandb
-
-    wandb.init(project=wandb_project, name=wandb_run_name, config=asdict(gptconf))
-
 # training loop
 t0 = time.time()
 while True:
@@ -165,15 +154,6 @@ while True:
         print(
             f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
         )
-        if wandb_log:
-            wandb.log(
-                {
-                    "iter": iter_num,
-                    "train/loss": losses["train"],
-                    "val/loss": losses["val"],
-                    "lr": lr,
-                }
-            )
         if losses["val"] < best_val_loss or always_save_checkpoint:
             best_val_loss = losses["val"]
             if iter_num > 0:
@@ -187,8 +167,6 @@ while True:
                 }
                 print(f"saving checkpoint to {out_dir}")
                 torch.save(checkpoint, os.path.join(out_dir, "ckpt.pt"))
-    if iter_num == 0:
-        break
 
     # forward backward update, with optional gradient accumulation to simulate larger batch size
     for micro_step in range(gradient_accumulation_steps):
