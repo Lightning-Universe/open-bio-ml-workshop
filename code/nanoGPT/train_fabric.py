@@ -1,10 +1,18 @@
 """
-This training script is a reduced version that runs on a single GPU.
-It doesn't contain any tricks to speed up training (DDP, mixed precision, etc.)
-
-$ python train.py
-
+This training script is a reduced version of the original nanoGPT, but has been converted to Fabric.
 The full version can be found here: https://github.com/Lightning-AI/nanoGPT
+
+On CPU (slow):
+$ lightning run model train_fabric.py
+
+Single GPU:
+$ lightning run model --accelerator=cuda train_fabric.py
+
+Mixed precision:
+$ lightning run model --accelerator=cuda --precision=bf16 train_fabric.py
+
+Multi-GPU (DDP):
+$ lightning run model --accelerator=cuda --precision=bf16 --devices=4 train_fabric.py
 """
 from dataclasses import asdict
 
@@ -14,6 +22,7 @@ import math
 
 import numpy as np
 import torch
+from lightning.fabric import Fabric
 
 from model import GPTConfig, GPT
 
@@ -49,7 +58,10 @@ lr_decay_iters = 600000  # should be ~= max_iters per Chinchilla
 min_lr = 6e-5  # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
 compile = False  # use PyTorch 2.0 to compile the model to be faster
 
-device = "cuda:0"
+# Initialize Fabric
+# It will receive configuration from the command line via `lightning rum model ...`
+fabric = Fabric()
+
 os.makedirs(out_dir, exist_ok=True)
 torch.manual_seed(1337)
 
@@ -70,7 +82,7 @@ def get_batch(split):
             for i in ix
         ]
     )
-    x, y = x.to(device), y.to(device)
+    x, y = x.to(fabric.device), y.to(fabric.device)
     return x, y
 
 
@@ -81,7 +93,7 @@ best_val_loss = 1e9
 model_args = dict()
 
 # init a new model from scratch
-print("Initializing a new model from scratch")
+fabric.print("Initializing a new model from scratch")
 
 gptconf = GPTConfig(
     n_layer=n_layer,
@@ -98,15 +110,16 @@ model = GPT(gptconf)
 if block_size < model.config.block_size:
     model.crop_block_size(block_size)
 
-model.to(device)
-
 # optimizer
 optimizer = model.configure_optimizers(weight_decay, learning_rate, (beta1, beta2))
 
 # compile the model
 if compile:
-    print("compiling the model ...")
+    fabric.print("compiling the model ...")
     model = torch.compile(model)  # requires PyTorch 2.0
+
+
+model, optimizer = fabric.setup(model, optimizer)
 
 
 # helps estimate an arbitrarily accurate loss over either split using many batches
@@ -153,32 +166,33 @@ while True:
 
     # evaluate the loss on train/val sets and write checkpoints
     if iter_num > 0 and iter_num % eval_interval == 0:
-        print("running validation")
+        fabric.print("running validation")
         losses = estimate_loss()
-        print(
+        fabric.print(
             f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
         )
         if losses["val"] < best_val_loss or always_save_checkpoint:
             best_val_loss = losses["val"]
             if iter_num > 0:
                 checkpoint = {
-                    "model": model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
+                    "model": model,
+                    "optimizer": optimizer,
                     "model_args": model_args,
                     "iter_num": iter_num,
                     "best_val_loss": best_val_loss,
                     "config": asdict(gptconf),
                 }
-                print(f"saving checkpoint to {out_dir}")
-                torch.save(checkpoint, os.path.join(out_dir, "ckpt.pt"))
+                fabric.print(f"saving checkpoint to {out_dir}")
+                fabric.save(os.path.join(out_dir, "ckpt.pt"), checkpoint)
 
     # forward backward update, with optional gradient accumulation to simulate larger batch size
     for micro_step in range(gradient_accumulation_steps):
-        # fetch a batch
-        X, Y = get_batch("train")
-        logits, loss = model(X, Y)
-        # backward pass
-        loss.backward()
+        with fabric.no_backward_sync(model, enabled=(micro_step < gradient_accumulation_steps - 1)):
+            # fetch a batch
+            X, Y = get_batch("train")
+            logits, loss = model(X, Y)
+            # backward pass
+            fabric.backward(loss)
 
     # clip the gradient
     if grad_clip != 0.0:
@@ -196,7 +210,7 @@ while True:
     t0 = t1
     if iter_num % log_interval == 0:
         lossf = loss.item()
-        print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms")
+        fabric.print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms")
     iter_num += 1
 
     # termination conditions
