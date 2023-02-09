@@ -178,11 +178,12 @@ while True:
 
     # forward backward update, with optional gradient accumulation to simulate larger batch size
     for micro_step in range(gradient_accumulation_steps):
-        # fetch a batch
-        X, Y = get_batch("train")
-        logits, loss = model(X, Y)
-        # backward pass
-        fabric.backward(loss)
+        with fabric.no_backward_sync(model, enabled=(micro_step < gradient_accumulation_steps - 1)):
+            # fetch a batch
+            X, Y = get_batch("train")
+            logits, loss = model(X, Y)
+            # backward pass
+            fabric.backward(loss)
 
     # clip the gradient
     if grad_clip != 0.0:
