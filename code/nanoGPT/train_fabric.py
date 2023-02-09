@@ -84,7 +84,7 @@ best_val_loss = 1e9
 model_args = dict()
 
 # init a new model from scratch
-print("Initializing a new model from scratch")
+fabric.print("Initializing a new model from scratch")
 
 gptconf = GPTConfig(
     n_layer=n_layer,
@@ -106,7 +106,7 @@ optimizer = model.configure_optimizers(weight_decay, learning_rate, (beta1, beta
 
 # compile the model
 if compile:
-    print("compiling the model ...")
+    fabric.print("compiling the model ...")
     model = torch.compile(model)  # requires PyTorch 2.0
 
 
@@ -157,9 +157,9 @@ while True:
 
     # evaluate the loss on train/val sets and write checkpoints
     if iter_num > 0 and iter_num % eval_interval == 0:
-        print("running validation")
+        fabric.print("running validation")
         losses = estimate_loss()
-        print(
+        fabric.print(
             f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
         )
         if losses["val"] < best_val_loss or always_save_checkpoint:
@@ -173,7 +173,7 @@ while True:
                     "best_val_loss": best_val_loss,
                     "config": asdict(gptconf),
                 }
-                print(f"saving checkpoint to {out_dir}")
+                fabric.print(f"saving checkpoint to {out_dir}")
                 fabric.save(os.path.join(out_dir, "ckpt.pt"), checkpoint)
 
     # forward backward update, with optional gradient accumulation to simulate larger batch size
@@ -201,7 +201,7 @@ while True:
     t0 = t1
     if iter_num % log_interval == 0:
         lossf = loss.item()
-        print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms")
+        fabric.print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms")
     iter_num += 1
 
     # termination conditions
