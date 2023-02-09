@@ -1,8 +1,7 @@
 """
-This training script is a reduced version that runs on a single GPU.
-It doesn't contain any tricks to speed up training (DDP, mixed precision, etc.)
+This training script is a reduced version of the original nanoGPT, but has been converted to Fabric.
 
-$ python train.py
+$ lightning run model train.py
 
 The full version can be found here: https://github.com/Lightning-AI/nanoGPT
 """
@@ -14,6 +13,7 @@ import math
 
 import numpy as np
 import torch
+from lightning.fabric import Fabric
 
 from model import GPTConfig, GPT
 
@@ -49,7 +49,10 @@ lr_decay_iters = 600000  # should be ~= max_iters per Chinchilla
 min_lr = 6e-5  # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
 compile = False  # use PyTorch 2.0 to compile the model to be faster
 
-device = "cuda:0"
+# Initialize Fabric
+# It will receive configuration from the command line via `lightning rum model ...`
+fabric = Fabric()
+
 os.makedirs(out_dir, exist_ok=True)
 torch.manual_seed(1337)
 
@@ -70,7 +73,7 @@ def get_batch(split):
             for i in ix
         ]
     )
-    x, y = x.to(device), y.to(device)
+    x, y = x.to(fabric.device), y.to(fabric.device)
     return x, y
 
 
@@ -98,8 +101,6 @@ model = GPT(gptconf)
 if block_size < model.config.block_size:
     model.crop_block_size(block_size)
 
-model.to(device)
-
 # optimizer
 optimizer = model.configure_optimizers(weight_decay, learning_rate, (beta1, beta2))
 
@@ -107,6 +108,9 @@ optimizer = model.configure_optimizers(weight_decay, learning_rate, (beta1, beta
 if compile:
     print("compiling the model ...")
     model = torch.compile(model)  # requires PyTorch 2.0
+
+
+model, optimizer = fabric.setup(model, optimizer)
 
 
 # helps estimate an arbitrarily accurate loss over either split using many batches
@@ -162,15 +166,15 @@ while True:
             best_val_loss = losses["val"]
             if iter_num > 0:
                 checkpoint = {
-                    "model": model.state_dict(),
-                    "optimizer": optimizer.state_dict(),
+                    "model": model,
+                    "optimizer": optimizer,
                     "model_args": model_args,
                     "iter_num": iter_num,
                     "best_val_loss": best_val_loss,
                     "config": asdict(gptconf),
                 }
                 print(f"saving checkpoint to {out_dir}")
-                torch.save(checkpoint, os.path.join(out_dir, "ckpt.pt"))
+                fabric.save(os.path.join(out_dir, "ckpt.pt"), checkpoint)
 
     # forward backward update, with optional gradient accumulation to simulate larger batch size
     for micro_step in range(gradient_accumulation_steps):
@@ -178,7 +182,7 @@ while True:
         X, Y = get_batch("train")
         logits, loss = model(X, Y)
         # backward pass
-        loss.backward()
+        fabric.backward(loss)
 
     # clip the gradient
     if grad_clip != 0.0:
