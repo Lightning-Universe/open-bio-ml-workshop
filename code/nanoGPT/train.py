@@ -24,7 +24,7 @@ always_save_checkpoint = True  # if True, always save a checkpoint after each ev
 dataset = "shakespeare"
 gradient_accumulation_steps = 5  # used to simulate larger batch sizes
 vocab_size = 50257
-batch_size = 12  # if gradient_accumulation_steps > 1, this is the micro-batch size
+batch_size = 6  # if gradient_accumulation_steps > 1, this is the micro-batch size
 block_size = 1024
 # model
 n_layer = 12
