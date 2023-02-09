@@ -149,7 +149,8 @@ while True:
         lr = learning_rate
 
     # evaluate the loss on train/val sets and write checkpoints
-    if iter_num % eval_interval == 0:
+    if iter_num > 0 and iter_num % eval_interval == 0:
+        print("running validation")
         losses = estimate_loss()
         print(
             f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}"
