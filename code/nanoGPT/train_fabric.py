@@ -1,9 +1,18 @@
 """
 This training script is a reduced version of the original nanoGPT, but has been converted to Fabric.
-
-$ lightning run model train.py
-
 The full version can be found here: https://github.com/Lightning-AI/nanoGPT
+
+On CPU (slow):
+$ lightning run model train_fabric.py
+
+Single GPU:
+$ lightning run model --accelerator=cuda train_fabric.py
+
+Mixed precision:
+$ lightning run model --accelerator=cuda --precision=bf16 train_fabric.py
+
+Multi-GPU (DDP):
+$ lightning run model --accelerator=cuda --precision=bf16 --devices=4 train_fabric.py
 """
 from dataclasses import asdict
 
