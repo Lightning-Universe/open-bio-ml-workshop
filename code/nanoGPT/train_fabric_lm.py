@@ -20,12 +20,11 @@ import os
 import time
 import math
 
-import numpy as np
 import torch
 from lightning.fabric import Fabric
-from lightning import LightningModule
 
-from model import GPTConfig, GPT
+from model import LitDataModule, LitGPT
+from gpt import GPTConfig
 
 
 # I/O
@@ -68,25 +67,6 @@ os.makedirs(out_dir, exist_ok=True)
 torch.manual_seed(1337)
 
 data_dir = os.path.join("data", dataset)
-train_data = np.memmap(os.path.join(data_dir, "train.bin"), dtype=np.uint16, mode="r")
-val_data = np.memmap(os.path.join(data_dir, "val.bin"), dtype=np.uint16, mode="r")
-
-
-def get_batch(split):
-    data = train_data if split == "train" else val_data
-    ix = torch.randint(len(data) - block_size, (batch_size,))
-    x = torch.stack(
-        [torch.from_numpy((data[i : i + block_size]).astype(np.int64)) for i in ix]
-    )
-    y = torch.stack(
-        [
-            torch.from_numpy((data[i + 1 : i + 1 + block_size]).astype(np.int64))
-            for i in ix
-        ]
-    )
-    x, y = x.to(fabric.device), y.to(fabric.device)
-    return x, y
-
 
 iter_num = 0
 best_val_loss = 1e9
@@ -108,30 +88,8 @@ gptconf = GPTConfig(
 )
 
 
-class LitGPT(LightningModule):
-    def __init__(self, config):
-        super().__init__()
-        self.gpt = GPT(config)
-
-        # crop down the model block size if desired
-        if block_size < self.gpt.config.block_size:
-            self.gpt.crop_block_size(block_size)
-
-    def training_step(self, batch):
-        X, Y = batch
-        _, loss = self.gpt(X, Y)
-        return loss
-
-    def configure_optimizers(self):
-        return model.configure_optimizers(weight_decay, learning_rate, (beta1, beta2))
-
-    def on_after_backward(self) -> None:
-        # clip the gradient
-        if grad_clip != 0.0:
-            torch.nn.utils.clip_grad_norm_(self.parameters(), grad_clip)
-
-
-model = LitGPT(gptconf)
+model = LitGPT(gptconf, block_size)
+datamodule = LitDataModule(data_dir, batch_size, block_size)
 
 
 # compile the model
@@ -141,6 +99,7 @@ if compile:
 
 
 model, optimizer = fabric.setup(model, model.configure_optimizers())
+train_dataloader, val_dataloader = fabric.setup_dataloaders(datamodule.train_dataloader(), datamodule.val_dataloader())
 
 
 # helps estimate an arbitrarily accurate loss over either split using many batches
@@ -150,10 +109,12 @@ def estimate_loss():
     model.eval()
     for split in ["train", "val"]:
         losses = torch.zeros(eval_iters)
-        for k in range(eval_iters):
-            X, Y = get_batch(split)
+        for k, batch in enumerate(val_dataloader):
+            X, Y = batch
             logits, loss = model(X, Y)
             losses[k] = loss.item()
+            if k == eval_iters - 1:
+                break
         out[split] = losses.mean()
     model.train()
     return out
@@ -176,7 +137,15 @@ def get_lr(iter):
 
 # training loop
 t0 = time.time()
+train_iter = iter(train_dataloader)
+
 while True:
+    try:
+        batch = next(train_iter)
+    except StopIteration:
+        train_iter = iter(train_dataloader)
+        batch = next(train_iter)
+
     # determine the learning rate for this iteration
     if decay_lr:
         lr = get_lr(iter_num)
@@ -210,11 +179,11 @@ while True:
     for micro_step in range(gradient_accumulation_steps):
         with fabric.no_backward_sync(model, enabled=(micro_step < gradient_accumulation_steps - 1)):
             # fetch a batch
-            loss = model.training_step(get_batch("train"))
+            loss = model.training_step(batch)
             # backward pass
             fabric.backward(loss)
 
-    model.on_after_backward()
+    model.on_before_optimizer_step(optimizer)
 
     # step the optimizer
     optimizer.step()

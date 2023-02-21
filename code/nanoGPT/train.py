@@ -15,7 +15,7 @@ import math
 import numpy as np
 import torch
 
-from model import GPTConfig, GPT
+from gpt import GPTConfig, GPT
 
 # I/O
 out_dir = "out"

@@ -24,7 +24,7 @@ import numpy as np
 import torch
 from lightning.fabric import Fabric
 
-from model import GPTConfig, GPT
+from gpt import GPTConfig, GPT
 
 # I/O
 out_dir = "out"
