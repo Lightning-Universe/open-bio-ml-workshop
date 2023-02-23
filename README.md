@@ -18,3 +18,27 @@ The second workshop, on Thursday, March 2, 2023 9:00 PM, will cover:
 - Benchmarking
 - Apps and recipes
 
+
+## Getting Started
+
+Set up a new Python virtual environment. Example using conda:
+
+```
+conda create -n openbioml python=3.10
+conda activate openbioml
+```
+
+Install Lightning:
+
+```
+pip install --pre lightning
+```
+
+This will also install PyTorch!
+
+
+## Resources
+
+[Lightning AI](https://lightning.ai)
+[Lightning Fabric Documentation](https://pytorch-lightning.readthedocs.io/en/latest/fabric/fabric.html)
+[PyTorch Lightning Documentation](https://pytorch-lightning.readthedocs.io/en/latest/)
