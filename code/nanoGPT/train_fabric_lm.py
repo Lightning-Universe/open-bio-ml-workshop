@@ -2,17 +2,6 @@
 This training script is a reduced version of the original nanoGPT, but has been converted to Fabric.
 The full version can be found here: https://github.com/Lightning-AI/nanoGPT
 
-On CPU (slow):
-$ lightning run model train_fabric_lm.py
-
-Single GPU:
-$ lightning run model --accelerator=cuda train_fabric_lm.py
-
-Mixed precision:
-$ lightning run model --accelerator=cuda --precision=bf16 train_fabric_lm.py
-
-Multi-GPU (DDP):
-$ lightning run model --accelerator=cuda --precision=bf16 --devices=4 train_fabric_lm.py
 """
 from dataclasses import asdict
 
@@ -39,8 +28,21 @@ max_iters = 600000  # total number of training iterations
 compile = False  # use PyTorch 2.0 to compile the model to be faster
 
 # Initialize Fabric
-# It will receive configuration from the command line via `lightning rum model ...`
-fabric = Fabric(callbacks=ModelSummary())
+
+# On CPU (slow):
+# lightning run model train_fabric.py
+
+# Single GPU:
+# Fabric(accelerator="cuda", devices=1)
+
+# Mixed precision:
+# Fabric(accelerator="cuda", devices=1, precision="bf16")
+
+# Multi-GPU (DDP):
+# Fabric(accelerator="cuda", devices=4, precision="bf16")
+
+fabric = Fabric(accelerator="cuda", devices=[6, 7], precision="bf16", callbacks=ModelSummary())
+fabric.launch()
 
 os.makedirs(out_dir, exist_ok=True)
 torch.manual_seed(1337)
@@ -53,7 +55,6 @@ fabric.print("Initializing a new model from scratch")
 
 
 model = LitGPT()
-datamodule = LitDataModule()
 
 
 # compile the model
@@ -63,7 +64,7 @@ if compile:
 
 
 model, optimizer = fabric.setup(model, model.configure_optimizers())
-train_dataloader, val_dataloader = fabric.setup_dataloaders(datamodule.train_dataloader(), datamodule.val_dataloader())
+train_dataloader, val_dataloader = fabric.setup_dataloaders(model.train_dataloader(), model.val_dataloader())
 
 
 # helps estimate an arbitrarily accurate loss over either split using many batches

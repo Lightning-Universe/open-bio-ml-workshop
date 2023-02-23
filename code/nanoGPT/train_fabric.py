@@ -2,17 +2,6 @@
 This training script is a reduced version of the original nanoGPT, but has been converted to Fabric.
 The full version can be found here: https://github.com/Lightning-AI/nanoGPT
 
-On CPU (slow):
-$ lightning run model train_fabric.py
-
-Single GPU:
-$ lightning run model --accelerator=cuda train_fabric.py
-
-Mixed precision:
-$ lightning run model --accelerator=cuda --precision=bf16 train_fabric.py
-
-Multi-GPU (DDP):
-$ lightning run model --accelerator=cuda --precision=bf16 --devices=4 train_fabric.py
 """
 from dataclasses import asdict
 
@@ -53,8 +42,21 @@ min_lr = 6e-5  # minimum learning rate, should be ~= learning_rate/10 per Chinch
 compile = False  # use PyTorch 2.0 to compile the model to be faster
 
 # Initialize Fabric
-# It will receive configuration from the command line via `lightning rum model ...`
-fabric = Fabric()
+
+# On CPU (slow):
+# lightning run model train_fabric.py
+
+# Single GPU:
+# Fabric(accelerator="cuda", devices=1)
+
+# Mixed precision:
+# Fabric(accelerator="cuda", devices=1, precision="bf16")
+
+# Multi-GPU (DDP):
+# Fabric(accelerator="cuda", devices=4, precision="bf16")
+
+fabric = Fabric(accelerator="cuda", devices=[6, 7], precision="bf16")
+fabric.launch()
 
 os.makedirs(out_dir, exist_ok=True)
 torch.manual_seed(1337)

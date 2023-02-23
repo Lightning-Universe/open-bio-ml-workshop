@@ -32,7 +32,7 @@ compile = False  # use PyTorch 2.0 to compile the model to be faster
 
 trainer = Trainer(
     accelerator="cuda",
-    # precision="bf16",
+    precision="bf16",
     devices=1,
     max_steps=600000, 
     accumulate_grad_batches=5, 
@@ -46,7 +46,6 @@ torch.manual_seed(1337)
 # init a new model from scratch
 print("Initializing a new model from scratch")
 model = LitGPT()
-datamodule = LitDataModule()
 
 
 # compile the model
@@ -55,4 +54,4 @@ if compile:
     model = torch.compile(model)  # requires PyTorch 2.0
 
 # training loop
-trainer.fit(model, datamodule)
+trainer.fit(model)

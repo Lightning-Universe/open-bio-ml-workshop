@@ -46,16 +46,16 @@ class LitGPT(LightningModule):
         if block_size < self.gpt.config.block_size:
             self.gpt.crop_block_size(block_size)
 
-    def training_step(self, batch, batch_idx):
+    def training_step(self, batch):
         X, Y = batch
         _, loss = self.gpt(X, Y)
-        self.log("train_loss", loss, prog_bar=True)
+        # self.log("train_loss", loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         X, Y = batch
         _, loss = self.gpt(X, Y)
-        self.log("val_loss", loss, prog_bar=True)
+        # self.log("val_loss", loss, prog_bar=True)
         return loss
 
     def configure_optimizers(self):
@@ -88,7 +88,22 @@ class LitGPT(LightningModule):
         assert 0 <= decay_ratio <= 1
         coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))  # coeff ranges 0..1
         return min_lr + coeff * (learning_rate - min_lr)
-        
+
+    def train_dataloader(self):
+        train_data = os.path.join(data_dir, "train.bin")
+        return DataLoader(
+            dataset=TextDataset(train_data),
+            batch_size=batch_size,
+            shuffle=True,
+        )
+
+    def val_dataloader(self):
+        val_data = os.path.join(data_dir, "val.bin")
+        return DataLoader(
+            dataset=TextDataset(val_data),
+            batch_size=batch_size,
+            shuffle=False,
+        )
 
 
 class TextDataset(Dataset):
