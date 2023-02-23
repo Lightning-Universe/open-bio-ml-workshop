@@ -39,6 +39,6 @@ This will also install PyTorch!
 
 ## Resources
 
-[Lightning AI](https://lightning.ai)
-[Lightning Fabric Documentation](https://pytorch-lightning.readthedocs.io/en/latest/fabric/fabric.html)
-[PyTorch Lightning Documentation](https://pytorch-lightning.readthedocs.io/en/latest/)
+- [Lightning AI](https://lightning.ai)
+- [Lightning Fabric Documentation](https://pytorch-lightning.readthedocs.io/en/latest/fabric/fabric.html)
+- [PyTorch Lightning Documentation](https://pytorch-lightning.readthedocs.io/en/latest/)
