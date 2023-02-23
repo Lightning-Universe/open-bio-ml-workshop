@@ -35,15 +35,9 @@ always_save_checkpoint = True  # if True, always save a checkpoint after each ev
 # data
 dataset = "shakespeare"
 gradient_accumulation_steps = 5  # used to simulate larger batch sizes
-vocab_size = 50257
 batch_size = 6  # if gradient_accumulation_steps > 1, this is the micro-batch size
 block_size = 1024
-# model
-n_layer = 12
-n_head = 12
-n_embd = 768
-dropout = 0.0  # for pretraining 0 is good, for finetuning try 0.1+
-bias = False  # do we use bias inside LayerNorm and Linear layers?
+
 # adamw optimizer
 learning_rate = 6e-4  # max learning rate
 max_iters = 600000  # total number of training iterations
@@ -89,20 +83,17 @@ def get_batch(split):
 iter_num = 0
 best_val_loss = 1e9
 
-# model init
-model_args = dict()
-
 # init a new model from scratch
 fabric.print("Initializing a new model from scratch")
 
 gptconf = GPTConfig(
-    n_layer=n_layer,
-    n_head=n_head,
-    n_embd=n_embd,
+    n_layer=12,
+    n_head=12,
+    n_embd=768,
     block_size=block_size,
-    dropout=dropout,
-    vocab_size=vocab_size,
-    bias=bias,
+    dropout=0.0,
+    vocab_size=50257,
+    bias=False,
 )
 model = GPT(gptconf)
 
@@ -177,7 +168,6 @@ while True:
                 checkpoint = {
                     "model": model,
                     "optimizer": optimizer,
-                    "model_args": model_args,
                     "iter_num": iter_num,
                     "best_val_loss": best_val_loss,
                     "config": asdict(gptconf),

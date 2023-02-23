@@ -3,29 +3,27 @@ This training script is a reduced version of the original nanoGPT, but has been 
 The full version can be found here: https://github.com/Lightning-AI/nanoGPT
 
 On CPU (slow):
-$ lightning run model train_fabric.py
+$ lightning run model train_fabric_lm.py
 
 Single GPU:
-$ lightning run model --accelerator=cuda train_fabric.py
+$ lightning run model --accelerator=cuda train_fabric_lm.py
 
 Mixed precision:
-$ lightning run model --accelerator=cuda --precision=bf16 train_fabric.py
+$ lightning run model --accelerator=cuda --precision=bf16 train_fabric_lm.py
 
 Multi-GPU (DDP):
-$ lightning run model --accelerator=cuda --precision=bf16 --devices=4 train_fabric.py
+$ lightning run model --accelerator=cuda --precision=bf16 --devices=4 train_fabric_lm.py
 """
 from dataclasses import asdict
 
 import os
 import time
-import math
 
 import torch
 from lightning.fabric import Fabric
 from lightning.pytorch.callbacks import ModelSummary
 
 from model import LitDataModule, LitGPT
-from gpt import GPTConfig
 
 
 # I/O
@@ -34,19 +32,8 @@ eval_interval = 2000
 log_interval = 1
 eval_iters = 200
 always_save_checkpoint = True  # if True, always save a checkpoint after each eval
-# data
-dataset = "shakespeare"
-gradient_accumulation_steps = 5  # used to simulate larger batch sizes
-vocab_size = 50257
-batch_size = 6  # if gradient_accumulation_steps > 1, this is the micro-batch size
-block_size = 1024
-# model
-n_layer = 12
-n_head = 12
-n_embd = 768
-dropout = 0.0  # for pretraining 0 is good, for finetuning try 0.1+
-bias = False  # do we use bias inside LayerNorm and Linear layers?
 
+gradient_accumulation_steps = 5  # used to simulate larger batch sizes
 max_iters = 600000  # total number of training iterations
 
 compile = False  # use PyTorch 2.0 to compile the model to be faster
@@ -58,30 +45,15 @@ fabric = Fabric(callbacks=ModelSummary())
 os.makedirs(out_dir, exist_ok=True)
 torch.manual_seed(1337)
 
-data_dir = os.path.join("data", dataset)
-
 iter_num = 0
 best_val_loss = 1e9
-
-# model init
-model_args = dict()
 
 # init a new model from scratch
 fabric.print("Initializing a new model from scratch")
 
-gptconf = GPTConfig(
-    n_layer=n_layer,
-    n_head=n_head,
-    n_embd=n_embd,
-    block_size=block_size,
-    dropout=dropout,
-    vocab_size=vocab_size,
-    bias=bias,
-)
 
-
-model = LitGPT(gptconf, block_size)
-datamodule = LitDataModule(data_dir, batch_size, block_size)
+model = LitGPT()
+datamodule = LitDataModule()
 
 
 # compile the model
@@ -138,10 +110,9 @@ while True:
                 checkpoint = {
                     "model": model,
                     "optimizer": optimizer,
-                    "model_args": model_args,
                     "iter_num": iter_num,
                     "best_val_loss": best_val_loss,
-                    "config": asdict(gptconf),
+                    "config": asdict(model.gptconf),
                 }
                 fabric.print(f"saving checkpoint to {out_dir}")
                 fabric.save(os.path.join(out_dir, "ckpt.pt"), checkpoint)
