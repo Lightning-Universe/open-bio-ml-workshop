@@ -32,7 +32,7 @@ compile = False  # use PyTorch 2.0 to compile the model to be faster
 
 trainer = Trainer(
     accelerator="cuda",
-    precision="bf16",
+    # precision="bf16",
     devices=1,
     max_steps=600000, 
     accumulate_grad_batches=5, 
