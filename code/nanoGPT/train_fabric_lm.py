@@ -41,7 +41,7 @@ compile = False  # use PyTorch 2.0 to compile the model to be faster
 # Multi-GPU (DDP):
 # Fabric(accelerator="cuda", devices=4, precision="bf16")
 
-fabric = Fabric(accelerator="cuda", devices=[6, 7], precision="bf16", callbacks=ModelSummary())
+fabric = Fabric(accelerator="cuda", devices=2, callbacks=ModelSummary())
 fabric.launch()
 
 os.makedirs(out_dir, exist_ok=True)
@@ -121,12 +121,14 @@ while True:
     # forward backward update, with optional gradient accumulation to simulate larger batch size
     for micro_step in range(gradient_accumulation_steps):
         with fabric.no_backward_sync(model, enabled=(micro_step < gradient_accumulation_steps - 1)):
-            # fetch a batch
+
+            # with fabric.autocast():
+                # fetch a batch
             loss = model.training_step(batch)
             # backward pass
             fabric.backward(loss)
 
-    model.on_before_optimizer_step(optimizer)
+    # model.on_before_optimizer_step(optimizer)
 
     # step the optimizer
     optimizer.step()

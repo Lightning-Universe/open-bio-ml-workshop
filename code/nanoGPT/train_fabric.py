@@ -55,7 +55,7 @@ compile = False  # use PyTorch 2.0 to compile the model to be faster
 # Multi-GPU (DDP):
 # Fabric(accelerator="cuda", devices=4, precision="bf16")
 
-fabric = Fabric(accelerator="cuda", devices=[6, 7], precision="bf16")
+fabric = Fabric(accelerator="cuda", devices=2)
 fabric.launch()
 
 os.makedirs(out_dir, exist_ok=True)
