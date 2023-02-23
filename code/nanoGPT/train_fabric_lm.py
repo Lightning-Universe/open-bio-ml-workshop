@@ -22,6 +22,7 @@ import math
 
 import torch
 from lightning.fabric import Fabric
+from lightning.pytorch.callbacks import ModelSummary
 
 from model import LitDataModule, LitGPT
 from gpt import GPTConfig
@@ -45,23 +46,14 @@ n_head = 12
 n_embd = 768
 dropout = 0.0  # for pretraining 0 is good, for finetuning try 0.1+
 bias = False  # do we use bias inside LayerNorm and Linear layers?
-# adamw optimizer
-learning_rate = 6e-4  # max learning rate
+
 max_iters = 600000  # total number of training iterations
-weight_decay = 1e-2
-beta1 = 0.9
-beta2 = 0.95
-grad_clip = 1.0  # clip gradients at this value, or disable if == 0.0
-# learning rate decay settings
-decay_lr = True  # whether to decay the learning rate
-warmup_iters = 2000  # how many steps to warm up for
-lr_decay_iters = 600000  # should be ~= max_iters per Chinchilla
-min_lr = 6e-5  # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
+
 compile = False  # use PyTorch 2.0 to compile the model to be faster
 
 # Initialize Fabric
 # It will receive configuration from the command line via `lightning rum model ...`
-fabric = Fabric()
+fabric = Fabric(callbacks=ModelSummary())
 
 os.makedirs(out_dir, exist_ok=True)
 torch.manual_seed(1337)
@@ -120,24 +112,11 @@ def estimate_loss():
     return out
 
 
-# learning rate decay scheduler (cosine with warmup)
-def get_lr(iter):
-    # 1) linear warmup for warmup_iters steps
-    if iter < warmup_iters:
-        return learning_rate * iter / warmup_iters
-    # 2) if iter > lr_decay_iters, return min learning rate
-    if iter > lr_decay_iters:
-        return min_lr
-    # 3) in between, use cosine decay down to min learning rate
-    decay_ratio = (iter - warmup_iters) / (lr_decay_iters - warmup_iters)
-    assert 0 <= decay_ratio <= 1
-    coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))  # coeff ranges 0..1
-    return min_lr + coeff * (learning_rate - min_lr)
-
-
 # training loop
 t0 = time.time()
 train_iter = iter(train_dataloader)
+
+fabric.call("on_fit_start", fabric, model)
 
 while True:
     try:
@@ -145,14 +124,6 @@ while True:
     except StopIteration:
         train_iter = iter(train_dataloader)
         batch = next(train_iter)
-
-    # determine the learning rate for this iteration
-    if decay_lr:
-        lr = get_lr(iter_num)
-        for param_group in optimizer.param_groups:
-            param_group["lr"] = lr
-    else:
-        lr = learning_rate
 
     # evaluate the loss on train/val sets and write checkpoints
     if iter_num > 0 and iter_num % eval_interval == 0:
