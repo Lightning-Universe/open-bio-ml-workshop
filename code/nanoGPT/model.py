@@ -49,13 +49,13 @@ class LitGPT(LightningModule):
     def training_step(self, batch, batch_idx):
         X, Y = batch
         _, loss = self.gpt(X, Y)
-        self.log("train_loss", loss, prog_bar=True)
+        # self.log("train_loss", loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         X, Y = batch
         _, loss = self.gpt(X, Y)
-        self.log("val_loss", loss, prog_bar=True)
+        # self.log("val_loss", loss, prog_bar=True)
         return loss
 
     def configure_optimizers(self):
@@ -115,6 +115,7 @@ class LitDataModule(LightningDataModule):
             dataset=TextDataset(self.train_data),
             batch_size=batch_size,
             shuffle=True,
+            num_workers=2
         )
 
     def val_dataloader(self):
@@ -122,4 +123,5 @@ class LitDataModule(LightningDataModule):
             dataset=TextDataset(self.val_data),
             batch_size=batch_size,
             shuffle=False,
+            num_workers=2,
         )

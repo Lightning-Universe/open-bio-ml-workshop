@@ -50,11 +50,10 @@ decay_lr = True  # whether to decay the learning rate
 warmup_iters = 2000  # how many steps to warm up for
 lr_decay_iters = 600000  # should be ~= max_iters per Chinchilla
 min_lr = 6e-5  # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
-compile = False  # use PyTorch 2.0 to compile the model to be faster
 
 # Initialize Fabric
 # It will receive configuration from the command line via `lightning rum model ...`
-fabric = Fabric()
+fabric = Fabric(accelerator="cuda", devices=1, precision="bf16")
 
 os.makedirs(out_dir, exist_ok=True)
 torch.manual_seed(1337)
@@ -105,9 +104,8 @@ if block_size < model.config.block_size:
 optimizer = model.configure_optimizers(weight_decay, learning_rate, (beta1, beta2))
 
 # compile the model
-if compile:
-    fabric.print("compiling the model ...")
-    model = torch.compile(model)  # requires PyTorch 2.0
+# use PyTorch 2.0 to compile the model to be faster
+# model = torch.compile(model)
 
 
 model, optimizer = fabric.setup(model, optimizer)
