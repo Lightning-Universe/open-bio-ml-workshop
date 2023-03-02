@@ -23,6 +23,8 @@ import math
 import numpy as np
 import torch
 from lightning.fabric import Fabric
+from lightning.fabric.loggers import TensorBoardLogger
+from callbacks.device_stats import DeviceStatsMonitor
 
 from gpt import GPTConfig, GPT
 
@@ -51,9 +53,18 @@ warmup_iters = 2000  # how many steps to warm up for
 lr_decay_iters = 600000  # should be ~= max_iters per Chinchilla
 min_lr = 6e-5  # minimum learning rate, should be ~= learning_rate/10 per Chinchilla
 
+logger = TensorBoardLogger("logs", name="fabric")
+device_stats = DeviceStatsMonitor()
+
 # Initialize Fabric
 # It will receive configuration from the command line via `lightning rum model ...`
-fabric = Fabric(accelerator="cuda", devices=1, precision="bf16")
+fabric = Fabric(
+    accelerator="cuda", 
+    devices=1, 
+    precision="bf16", 
+    loggers=logger, 
+    callbacks=device_stats
+)
 
 os.makedirs(out_dir, exist_ok=True)
 torch.manual_seed(1337)
@@ -173,6 +184,8 @@ while True:
                 fabric.print(f"saving checkpoint to {out_dir}")
                 fabric.save(os.path.join(out_dir, "ckpt.pt"), checkpoint)
 
+    fabric.call("on_train_batch_start", fabric)
+
     # forward backward update, with optional gradient accumulation to simulate larger batch size
     for micro_step in range(gradient_accumulation_steps):
         with fabric.no_backward_sync(model, enabled=(micro_step < gradient_accumulation_steps - 1)):
@@ -181,6 +194,8 @@ while True:
             logits, loss = model(X, Y)
             # backward pass
             fabric.backward(loss)
+
+    fabric.call("on_train_batch_end", fabric)
 
     # clip the gradient
     if grad_clip != 0.0:

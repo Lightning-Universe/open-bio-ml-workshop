@@ -8,7 +8,8 @@ import os
 
 import torch
 from lightning.pytorch import Trainer
-from lightning.pytorch.callbacks import ModelSummary
+from lightning.pytorch.callbacks import ModelSummary, DeviceStatsMonitor
+from lightning.pytorch.loggers import TensorBoardLogger
 
 from model import LitDataModule, LitGPT
 from gpt import GPTConfig
@@ -23,6 +24,8 @@ trainer = Trainer(
     val_check_interval=2000,
     limit_val_batches=200,
     num_sanity_val_steps=0,
+    logger=TensorBoardLogger("logs", name="trainer"),
+    callbacks=DeviceStatsMonitor(),
 )
 
 torch.manual_seed(1337)
